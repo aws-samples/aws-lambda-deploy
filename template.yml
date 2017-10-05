@@ -1,0 +1,198 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Parameters:
+  BucketName:
+      Type: String
+
+Resources:
+  SimpleDeployFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: SimpleDeployFunction
+      Timeout: 300
+      Handler: simple.handler
+      Runtime: python3.6
+      CodeUri: build/simple.zip
+      Role: !GetAtt LambdaFunctionDeployWorkflowFunctionRole.Arn
+
+  CalculateWeights:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: DeployWorkflow-CalculateWeights
+      Timeout: 300
+      Handler: calculate_weights.handler
+      Runtime: python3.6
+      CodeUri: build/calculate_weights.zip
+      Role: !GetAtt LambdaFunctionDeployWorkflowFunctionRole.Arn
+
+  UpdateWeight:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: DeployWorkflow-UpdateWeight
+      Timeout: 300
+      Handler: update_weight.handler
+      Runtime: python3.6
+      CodeUri: build/update_weight.zip
+      Role: !GetAtt LambdaFunctionDeployWorkflowFunctionRole.Arn
+
+  HealthCheck:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: DeployWorkflow-HealthCheck
+      Timeout: 300
+      Handler: health_check.handler
+      Runtime: python3.6
+      CodeUri: build/health_check.zip
+      Role: !GetAtt LambdaFunctionDeployWorkflowFunctionRole.Arn
+
+  Rollback:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: DeployWorkflow-Rollback
+      Timeout: 300
+      Handler: rollback.handler
+      Runtime: python3.6
+      CodeUri: build/rollback.zip
+      Role: !GetAtt LambdaFunctionDeployWorkflowFunctionRole.Arn
+
+  Finalize:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: DeployWorkflow-Finalize
+      Timeout: 300
+      Handler: finalize.handler
+      Runtime: python3.6
+      CodeUri: build/finalize.zip
+      Role: !GetAtt LambdaFunctionDeployWorkflowFunctionRole.Arn
+
+  LambdaFunctionDeployWorkflowFunctionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      Path: "/"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Principal:
+              Service: "lambda.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Policies:
+       -
+         PolicyName: "root"
+         PolicyDocument:
+           Version: '2012-10-17'
+           Statement:
+             - Effect: Allow
+               Action:
+                 - lambda:*
+                 - logs:*
+                 - cloudwatch:*
+               Resource: '*'
+
+  StateMachineExecutionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Principal:
+              Service:
+                !Join [ ".", [ "states", !Ref "AWS::Region", "amazonaws.com"] ]
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      Policies:
+        -
+          PolicyName: "root"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Action: "lambda:InvokeFunction"
+                Resource: "*"
+
+  DeployStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      RoleArn: !GetAtt StateMachineExecutionRole.Arn
+      DefinitionString: |-
+        {
+          "Comment": "A state machine that deploys a Lambda function incrementally using a Weighted Alias",
+          "StartAt": "CalculateWeights",
+          "States": {
+            "CalculateWeights": {
+              "Type": "Task",
+              "Resource": "arn:aws:lambda:us-east-1:975344022805:function:DeployWorkflow-CalculateWeights",
+              "ResultPath": "$.weights",
+              "Next": "UpdateWeight"
+            },
+            "UpdateWeight": {
+              "Type": "Task",
+              "Resource": "arn:aws:lambda:us-east-1:975344022805:function:DeployWorkflow-UpdateWeight",
+              "ResultPath": "$.current-weight",
+              "Next": "Wait"
+            },
+            "Wait": {
+              "Type": "Wait",
+              "SecondsPath": "$.interval",
+              "Next": "HealthCheck"
+            },
+            "HealthCheck": {
+              "Type": "Task",
+              "Resource": "arn:aws:lambda:us-east-1:975344022805:function:DeployWorkflow-HealthCheck",
+              "Next": "VerifyHealthCheck",
+              "InputPath": "$",
+              "ResultPath": "$.status"
+            },
+            "VerifyHealthCheck": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.status",
+                  "StringEquals": "FAILED",
+                  "Next": "Rollback"
+                },
+                {
+                  "Variable": "$.status",
+                  "StringEquals": "SUCCEEDED",
+                  "Next": "IsFullyWeighted"
+                }
+              ],
+              "Default": "Rollback"
+            },
+            "IsFullyWeighted": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.current-weight",
+                  "NumericEquals": 1,
+                  "Next": "Finalize"
+                }
+              ],
+              "Default": "UpdateWeight"
+            },
+            "Rollback": {
+              "Type": "Task",
+              "Resource": "arn:aws:lambda:us-east-1:975344022805:function:DeployWorkflow-Rollback",
+              "Next": "Fail",
+              "InputPath": "$",
+              "ResultPath": "$"
+            },
+            "Fail": {
+              "Type": "Fail",
+              "Cause": "Function deployment failed",
+              "Error": "HealthCheck returned FAILED"
+            },
+            "Finalize": {
+              "Type": "Task",
+              "Resource": "arn:aws:lambda:us-east-1:975344022805:function:DeployWorkflow-Finalize",
+              "InputPath": "$",
+              "End": true
+            }
+          }
+        }
