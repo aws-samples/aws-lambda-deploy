@@ -7,11 +7,11 @@ Full background and examples can be found in '[Implementing Serverless Canary De
 Please ensure you have the [AWS CLI](https://aws.amazon.com/cli) installed and configured with [credentials](http://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html).
 
 The install script uses SAM to deploy relevant resources to your AWS account:
-```
-git clone https://github.com/awslabs/lambda-deploy
-cd lambda-deploy
-export BUCKET_NAME=[S3_BUCKET_NAME_FOR_BUILD_ARTIFACTS]
-./install.sh
+```bash
+$ git clone https://github.com/awslabs/lambda-deploy
+$ cd lambda-deploy
+$ export BUCKET_NAME=[S3_BUCKET_NAME_FOR_BUILD_ARTIFACTS]
+$ ./install.sh
 ```
 
 ## Simple deployment function
@@ -19,9 +19,9 @@ This simple Python script runs as a Lambda function and deploys another function
 
 If the health check fails, the alias is rolled back to its initial version. The health check is implemented as a simple check against the existence of Errors metrics in CloudWatch for the alias and new version.
 
-```
+```bash
 # Rollout version 2 incrementally over 10 steps, with 120s between each step
-aws lambda invoke --function-name SimpleDeployFunction --log-type Tail --payload \
+$ aws lambda invoke --function-name SimpleDeployFunction --log-type Tail --payload \
    '{"function-name": "MyFunction",
    "alias-name": "MyAlias",
    "new-version": "2",
@@ -36,13 +36,14 @@ This state machine performs essentially the same task as the simple deployment f
 
 The step function will incrementally update the new version weight based on the "steps" parameter, waiting for some time based on the "interval" parameter, and performing health checks between updates. If the health check fails, the alias will be rolled back to the original version and the workflow will fail.
 
-```
-aws stepfunctions start-execution --state-machine-arn [STATE_MACHINE_ARN] --input '{
-    "function-name": "MyFunction",
-    "alias-name": "MyAlias",
-    "new-version": "2",
-    "steps": 10,
-    "interval" : 120,
-    "type": "linear"
-    }'
+```bash
+$ export STATE_MACHINE_ARN=`aws cloudformation describe-stack-resources --stack-name aws-lambda-deploy-stack --logical-resource-id DeployStateMachine --output text | cut  -d$'\t' -f3`
+$ aws stepfunctions start-execution --state-machine-arn $STATE_MACHINE_ARN --input '{
+"function-name": "MyFunction",
+"alias-name": "MyAlias",
+"new-version": "2",
+"steps": 10,
+"interval": 120,
+"type": "linear"}'
+
 ```
