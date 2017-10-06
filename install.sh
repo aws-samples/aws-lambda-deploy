@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Set this to a bucket owned by you
-export STACK_NAME=LambdaFunctionDeploymentStack
+export STACK_NAME=aws-lambda-deploy-stack
 
 rm -rf build
 mkdir build

@@ -10,10 +10,13 @@ or in the "license" file accompanying this file. This file is distributed on an 
 import time
 import boto3
 from datetime import datetime, date, timedelta
+import logging
 
+log = logging.getLogger('simple')
 lambda_client = None
 
 def handler(event, context):
+	init()
 	validate_input(event)
 
 	func_name = event['function-name']
@@ -21,13 +24,13 @@ def handler(event, context):
 	alias_name = event['alias-name']
 	steps = event['steps']
 	interval = event['interval']
-	type = event.get('type', 'linear')
+	weight_function = event.get('type', 'linear')
 	health_check = event.get('health-check', True)
 
-	weights = generate_weights(type, steps)
+	weights = generate_weights(weight_function, steps)
 	start_time = time.time()
 
-	print("Calculated alias weight progression: {0}".format(weights))
+	log.info("Calculated alias weight progression: {0}".format(weights))
 
 	for weight in weights:
 		update_weight(func_name, alias_name, version, weight)
@@ -42,13 +45,13 @@ def handler(event, context):
 	res = finalize(func_name, alias_name, version)
 	end_time = time.time()
 
-	print("Alias {0}:{1} is now routing 100% of traffic to version {2}".format(func_name, alias_name, version))
-	print("Finished after {0}s".format(round(end_time - start_time, 2)))
+	log.info("Alias {0}:{1} is now routing 100% of traffic to version {2}".format(func_name, alias_name, version))
+	log.info("Finished after {0}s".format(round(end_time - start_time, 2)))
 
 	return res
 
 def update_weight(func_name, alias_name, version, next_weight):
-	print("Updating weight of alias {1}:{2} for version {0} to {3}".format(version, func_name, alias_name, next_weight))
+	log.info("Updating weight of alias {1}:{2} for version {0} to {3}".format(version, func_name, alias_name, next_weight))
 	client = get_lambda_client()
 
 	weights = {
@@ -73,17 +76,15 @@ def validate_input(event):
 		raise Exception("'alias-name' is required")
 	if not 'interval' in event:
 		raise Exception("'interval' is required")
-	if not 'type' in event:
-		raise Exception("'type' is required")
 	if not 'steps' in event:
 		raise Exception("'steps' is required")
 
 def do_health_check(func_name, alias_name, version):
 	# implement custom health checks here (i.e. invoke, cloudwatch alarms, etc)
-	return health_check_metrics_errors(func_name, alias_name, version)
+	return check_errors_in_cloudwatch(func_name, alias_name, version)
 
 # Return False if any error metrics were emitted in the last minute for the function/alias/new version combination
-def health_check_metrics_errors(func_name, alias_name, new_version):
+def check_errors_in_cloudwatch(func_name, alias_name, new_version):
 	client = boto3.client('cloudwatch')
 
 	func_plus_alias = func_name + ":" + alias_name
@@ -115,19 +116,19 @@ def health_check_metrics_errors(func_name, alias_name, new_version):
 	datapoints = response['Datapoints']
 	for datapoint in datapoints:
 		if datapoint['Sum'] > 0:
-			print("Failing health check because error metrics were found for new version: {0}".format(datapoints))
+			log.info("Failing health check because error metrics were found for new version: {0}".format(datapoints))
 			return False
 
 	return True
 
 def rollback(func_name, alias_name):
-	print("Health check failed. Rolling back to original version")
+	log.info("Health check failed. Rolling back to original version")
 	client = get_lambda_client()
 	routing_config = {
 		'AdditionalVersionWeights' : {}
 	}
 	client.update_alias(FunctionName=func_name, Name=alias_name, RoutingConfig=routing_config)
-	print("Alias was successfully rolled back to original version")
+	log.info("Alias was successfully rolled back to original version")
 	return
 
 # Set the new version as the primary version and reset the AdditionalVersionWeights
@@ -166,10 +167,15 @@ def get_lambda_client():
 		lambda_client = boto3.client('lambda')
 	return lambda_client
 
+def init():
+	logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+	for logging_handler in logging.root.handlers:
+		logging_handler.addFilter(logging.Filter('simple'))
+
 def main():
 	# main() is useful for testing locally. not used when run in Lambda
 	test_event = {
-		'function-name': "myfunction",
+		'function-name': "echo",
 		 'new-version': "1",
 		 'alias-name': "myalias",
 		 'steps': 10,
@@ -177,7 +183,7 @@ def main():
 		 'type': "linear",
 		 'health-check': True
 	}
-	print(handler(test_event, ""))
+	log.info(handler(test_event, ""))
 
 if __name__ == "__main__":
 	main()

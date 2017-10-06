@@ -13,7 +13,7 @@ Resources:
       Handler: simple.handler
       Runtime: python3.6
       CodeUri: build/simple.zip
-      Role: !GetAtt LambdaFunctionDeployWorkflowFunctionRole.Arn
+      Policies: AWSLambdaFullAccess
 
   CalculateWeights:
     Type: AWS::Serverless::Function
@@ -23,7 +23,7 @@ Resources:
       Handler: calculate_weights.handler
       Runtime: python3.6
       CodeUri: build/calculate_weights.zip
-      Role: !GetAtt LambdaFunctionDeployWorkflowFunctionRole.Arn
+      Policies: AWSLambdaFullAccess
 
   UpdateWeight:
     Type: AWS::Serverless::Function
@@ -33,7 +33,7 @@ Resources:
       Handler: update_weight.handler
       Runtime: python3.6
       CodeUri: build/update_weight.zip
-      Role: !GetAtt LambdaFunctionDeployWorkflowFunctionRole.Arn
+      Policies: AWSLambdaFullAccess
 
   HealthCheck:
     Type: AWS::Serverless::Function
@@ -43,7 +43,7 @@ Resources:
       Handler: health_check.handler
       Runtime: python3.6
       CodeUri: build/health_check.zip
-      Role: !GetAtt LambdaFunctionDeployWorkflowFunctionRole.Arn
+      Policies: AWSLambdaFullAccess
 
   Rollback:
     Type: AWS::Serverless::Function
@@ -53,7 +53,7 @@ Resources:
       Handler: rollback.handler
       Runtime: python3.6
       CodeUri: build/rollback.zip
-      Role: !GetAtt LambdaFunctionDeployWorkflowFunctionRole.Arn
+      Policies: AWSLambdaFullAccess
 
   Finalize:
     Type: AWS::Serverless::Function
@@ -63,33 +63,7 @@ Resources:
       Handler: finalize.handler
       Runtime: python3.6
       CodeUri: build/finalize.zip
-      Role: !GetAtt LambdaFunctionDeployWorkflowFunctionRole.Arn
-
-  LambdaFunctionDeployWorkflowFunctionRole:
-    Type: "AWS::IAM::Role"
-    Properties:
-      Path: "/"
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          -
-            Effect: "Allow"
-            Principal:
-              Service: "lambda.amazonaws.com"
-            Action:
-              - "sts:AssumeRole"
-      Policies:
-       -
-         PolicyName: "root"
-         PolicyDocument:
-           Version: '2012-10-17'
-           Statement:
-             - Effect: Allow
-               Action:
-                 - lambda:*
-                 - logs:*
-                 - cloudwatch:*
-               Resource: '*'
+      Policies: AWSLambdaFullAccess
 
   StateMachineExecutionRole:
     Type: "AWS::IAM::Role"
@@ -120,20 +94,20 @@ Resources:
     Type: AWS::StepFunctions::StateMachine
     Properties:
       RoleArn: !GetAtt StateMachineExecutionRole.Arn
-      DefinitionString: |-
+      DefinitionString: !Sub |-
         {
           "Comment": "A state machine that deploys a Lambda function incrementally using a Weighted Alias",
           "StartAt": "CalculateWeights",
           "States": {
             "CalculateWeights": {
               "Type": "Task",
-              "Resource": "arn:aws:lambda:us-east-1:975344022805:function:DeployWorkflow-CalculateWeights",
+              "Resource": "${CalculateWeights.Arn}",
               "ResultPath": "$.weights",
               "Next": "UpdateWeight"
             },
             "UpdateWeight": {
               "Type": "Task",
-              "Resource": "arn:aws:lambda:us-east-1:975344022805:function:DeployWorkflow-UpdateWeight",
+              "Resource": "${UpdateWeight.Arn}",
               "ResultPath": "$.current-weight",
               "Next": "Wait"
             },
@@ -144,7 +118,7 @@ Resources:
             },
             "HealthCheck": {
               "Type": "Task",
-              "Resource": "arn:aws:lambda:us-east-1:975344022805:function:DeployWorkflow-HealthCheck",
+              "Resource": "${HealthCheck.Arn}",
               "Next": "VerifyHealthCheck",
               "InputPath": "$",
               "ResultPath": "$.status"
@@ -178,7 +152,7 @@ Resources:
             },
             "Rollback": {
               "Type": "Task",
-              "Resource": "arn:aws:lambda:us-east-1:975344022805:function:DeployWorkflow-Rollback",
+              "Resource": "${Rollback.Arn}",
               "Next": "Fail",
               "InputPath": "$",
               "ResultPath": "$"
@@ -190,7 +164,7 @@ Resources:
             },
             "Finalize": {
               "Type": "Task",
-              "Resource": "arn:aws:lambda:us-east-1:975344022805:function:DeployWorkflow-Finalize",
+              "Resource": "${Finalize.Arn}",
               "InputPath": "$",
               "End": true
             }
