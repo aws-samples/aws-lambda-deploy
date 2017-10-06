@@ -8,8 +8,8 @@ Please ensure you have the [AWS CLI](https://aws.amazon.com/cli) installed and c
 
 The install script uses SAM to deploy relevant resources to your AWS account:
 ```bash
-$ git clone https://github.com/awslabs/lambda-deploy
-$ cd lambda-deploy
+$ git clone https://github.com/awslabs/aws-lambda-deploy
+$ cd aws-lambda-deploy
 $ export BUCKET_NAME=[S3_BUCKET_NAME_FOR_BUILD_ARTIFACTS]
 $ ./install.sh
 ```
