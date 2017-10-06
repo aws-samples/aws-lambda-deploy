@@ -1,9 +1,9 @@
-#lambda-deploy
+# aws-lambda-deploy
 A collection of tools to enable canary deployments of [AWS Lambda](https://aws.amazon.com/lambda) functions.
 
 Full background and examples can be found in '[Implementing Serverless Canary Deployments of AWS Lambda Functions with Alias Traffic Shifting and AWS Step Functions](TODO Blog post link)' on the AWS Compute Blog.
 
-##Installation
+## Installation
 Please ensure you have the [AWS CLI](https://aws.amazon.com/cli) installed and configured with [credentials](http://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html).
 
 The install script uses SAM to deploy relevant resources to your AWS account:
@@ -14,7 +14,7 @@ export BUCKET_NAME=[S3_BUCKET_NAME_FOR_BUILD_ARTIFACTS]
 ./install.sh
 ```
 
-##Simple deployment function
+## Simple deployment function
 This simple Python script runs as a Lambda function and deploys another function by incrementally increasing the weight of the new function version over a prescribed number of steps, while checking the health of the new version. 
 
 If the health check fails, the alias is rolled back to its initial version. The health check is implemented as a simple check against the existence of Errors metrics in CloudWatch for the alias and new version.
@@ -31,7 +31,7 @@ aws lambda invoke --function-name SimpleDeployFunction --log-type Tail --payload
    }' output
 ```
 
-##Deployment workflow
+## Deployment workflow
 This state machine performs essentially the same task as the simple deployment function, but it runs as an asynchronous workflow in AWS Step Functions, with a maximum timeout of 1 year.
 
 The step function will incrementally update the new version weight based on the "steps" parameter, waiting for some time based on the "interval" parameter, and performing health checks between updates. If the health check fails, the alias will be rolled back to the original version and the workflow will fail.
