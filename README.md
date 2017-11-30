@@ -1,7 +1,7 @@
 # aws-lambda-deploy
 A collection of tools to enable canary deployments of [AWS Lambda](https://aws.amazon.com/lambda) functions.
 
-Full background and examples can be found in '[Implementing Serverless Canary Deployments of AWS Lambda Functions with Alias Traffic Shifting and AWS Step Functions](TODO Blog post link)' on the AWS Compute Blog.
+Full background and examples can be found in [Implementing Canary Deployments of AWS Lambda Functions with Alias Traffic Shifting](https://aws.amazon.com/blogs/compute/implementing-canary-deployments-of-aws-lambda-functions-with-alias-traffic-shifting/) on the AWS Compute Blog.
 
 ## Installation
 Please ensure you have the [AWS CLI](https://aws.amazon.com/cli) installed and configured with [credentials](http://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html).
