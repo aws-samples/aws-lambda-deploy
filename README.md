@@ -1,5 +1,5 @@
 # aws-lambda-deploy
-A collection of tools to enable canary deployments of [AWS Lambda](https://aws.amazon.com/lambda) functions.
+A collection of sample tools to enable canary deployments of [AWS Lambda](https://aws.amazon.com/lambda) functions.
 
 Full background and examples can be found in [Implementing Canary Deployments of AWS Lambda Functions with Alias Traffic Shifting](https://aws.amazon.com/blogs/compute/implementing-canary-deployments-of-aws-lambda-functions-with-alias-traffic-shifting/) on the AWS Compute Blog.
 
