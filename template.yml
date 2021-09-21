@@ -43,7 +43,9 @@ Resources:
       Handler: health_check.handler
       Runtime: python3.6
       CodeUri: build/health_check.zip
-      Policies: AWSLambdaFullAccess
+      Policies: 
+        - AWSLambda_FullAccess
+        - CloudWatchReadOnlyAccess
 
   Rollback:
     Type: AWS::Serverless::Function
